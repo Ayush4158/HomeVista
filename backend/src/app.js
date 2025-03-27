@@ -14,7 +14,9 @@ app.use(express.static("public"))
 app.use(cookieParser())
 
 import userRouter from './routes/user.routes.js'
+import listRouter from './routes/list.routes.js'
 
 app.use('/api/users', userRouter)
+app.use('/api/list', listRouter)
 
 export { app }
