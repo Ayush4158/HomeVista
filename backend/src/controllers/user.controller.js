@@ -38,7 +38,7 @@ const register = asyncHandler (async (req,res) => {
     throw new ApiError(409, "User with email or username already exist")
   }
 
-  const avatarLocalPath = req.files?.avatar[0]?.path
+  const avatarLocalPath = req.file?.path
   if(!avatarLocalPath){
     throw new ApiError(400, "Avatar file is  required")
   }
@@ -71,45 +71,48 @@ const register = asyncHandler (async (req,res) => {
   )
 })
 
-const login = asyncHandler (async(req,res) => {
-  const {email,password} = req.body;
-  if(!email){
-    throw new ApiError(400, "Email is required")
-    }
+const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body;
 
-    const user = await User.findOne({
-      email
-    })
+  if (!email || !password) {
+    throw new ApiError(400, "Email and Password are required");
+  }
 
-    if(!user){
-      throw new ApiError(404, "User does not exist")
-    }
+  const user = await User.findOne({ email });
 
-    const isPasswordValid = await user.isPasswordCorrect(password)
+  if (!user) {
+    throw new ApiError(404, "User does not exist");
+  }
 
-    if(!isPasswordValid){
-      throw new ApiError(401, "Invalid user credentials")
-    }
+  const isPasswordValid = await user.isPasswordCorrect(password);
 
-    const {accessToken, refreshToken} = await generateAccessAndRefreshToken(user._id)
+  if (!isPasswordValid) {
+    throw new ApiError(401, "Invalid user credentials");
+  }
 
-    const loggedinUser = await User.findById(user._id).select("-password -refreshToken")
+  const { accessToken, refreshToken } = await generateAccessAndRefreshToken(user._id);
 
-    const options = {
-      httpOnly: true,
-      secure: true
-    }
+  const loggedinUser = await User.findById(user._id).select("-password -refreshToken");
 
-    return res.status(200).cookie("accessToken", accessToken, options).cookie("refreshToken", refreshToken, options).json(
+  const options = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production', // Use secure cookies only in production
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Proper handling for cross-origin requests
+    maxAge: 24 * 60 * 60 * 1000 // 1 day
+  };
+
+  return res
+    .status(200)
+    .cookie("accessToken", accessToken, options)
+    .cookie("refreshToken", refreshToken, options)
+    .json(
       new ApiResponse(
-        200, 
-        {
-          user: loggedinUser, accessToken, refreshToken
-        },
+        200,
+        { user: loggedinUser, accessToken, refreshToken },
         "User logged in successfully"
       )
-    )
-  })
+    );
+});
 
   const logout = asyncHandler (async (req,res) => {
     await User.findByIdAndUpdate(
